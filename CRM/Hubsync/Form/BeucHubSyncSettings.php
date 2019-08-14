@@ -22,13 +22,20 @@ class CRM_Hubsync_Form_BeucHubSyncSettings extends CRM_Core_Form {
     $defaults['perform_test'] = 0;
     $this->setDefaults($defaults);
 
+
     // add buttons
+    $cancelURL = CRM_Utils_System::url('civicrm/beuchubsync', 'reset=1');
     $this->addButtons([
       [
         'type' => 'submit',
         'name' => E::ts('Save'),
         'isDefault' => TRUE,
       ],
+      [
+          'type' => 'cancel',
+          'name' => E::ts('Cancel'),
+          'js' => array('onclick' => "location.href='{$cancelURL}'; return false;"),
+      ]
     ]);
 
     // export form elements

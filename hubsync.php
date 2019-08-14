@@ -84,7 +84,6 @@ function hubsync_civicrm_upgrade($op, CRM_Queue_Queue $queue = NULL) {
  * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_managed
  */
 function hubsync_civicrm_managed(&$entities) {
-  _hubsync_civix_civicrm_managed($entities);
 }
 
 /**

@@ -6,4 +6,16 @@
     <title>BeucHubSyncSettings</title>
     <access_arguments>access CiviCRM</access_arguments>
   </item>
+  <item>
+    <path>civicrm/beuchubsync</path>
+    <page_callback>CRM_Hubsync_Form_BeucHubSync</page_callback>
+    <title>BeucHubSync</title>
+    <access_arguments>access CiviCRM</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/beuchubsync/status</path>
+    <page_callback>CRM_Hubsync_Page_BeucHubSyncStatus</page_callback>
+    <title>BeucHubSyncStatus</title>
+    <access_arguments>access CiviCRM</access_arguments>
+  </item>
 </menu>
