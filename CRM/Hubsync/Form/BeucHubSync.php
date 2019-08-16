@@ -35,11 +35,16 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
     $action = $values['action'];
     switch ($action) {
       case 'get':
-        $this->getRemoteData();
+        $status = $this->getRemoteData();
+        CRM_Core_Session::setStatus($status, '', 'success');
         break;
       case 'analyze':
+        $this->analyzeData();
+        CRM_Utils_System::redirect(CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'));
         break;
       case 'sync':
+        $this->syncData();
+        //CRM_Utils_System::redirect(CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'));
         break;
       default:
         CRM_Core_Session::setStatus("Unknown action: $action", '', 'error');
@@ -71,8 +76,34 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
       $fetcher->storeDataUsers();
 
       $status .= 'OK<br><br>Data successfully retrieved from the HUB';
+    }
+    catch (Exception $e) {
+      CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');
+    }
 
-      CRM_Core_Session::setStatus($status, '', 'success');
+    return $status;
+  }
+
+  public function analyzeData() {
+    $status = '<br>';
+
+    try {
+      $synchronizer = new CRM_Hubsync_Synchronizer(TRUE);
+      $synchronizer->syncPriorities();
+      $synchronizer->syncOrgs();
+    }
+    catch (Exception $e) {
+      CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');
+    }
+  }
+
+  public function syncData() {
+    $status = '<br>';
+
+    try {
+      $synchronizer = new CRM_Hubsync_Synchronizer(FALSE);
+      $synchronizer->syncPriorities();
+      $synchronizer->syncOrgs();
     }
     catch (Exception $e) {
       CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');

@@ -18,6 +18,21 @@ class CRM_Hubsync_Page_BeucHubSyncStatus extends CRM_Core_Page {
     $countOrgs = CRM_Core_DAO::singleValueQuery("select count(*) from civicrm_beuc_hub_orgs");
     $this->assign('countOrgs', $countOrgs);
 
+    // get the priorities
+    $dao = CRM_Core_DAO::executeQuery("select * from civicrm_beuc_hub_priorities order by sync_status, name");
+    $priorities = $dao->fetchAll();
+    $this->assign('priorities', $priorities);
+
+    // get the users
+    $dao = CRM_Core_DAO::executeQuery("select * from civicrm_beuc_hub_users order by sync_status, last_name, first_name");
+    $users = $dao->fetchAll();
+    $this->assign('users', $users);
+
+    // get the users
+    $dao = CRM_Core_DAO::executeQuery("select * from civicrm_beuc_hub_orgs order by sync_status, name");
+    $orgs = $dao->fetchAll();
+    $this->assign('orgs', $orgs);
+
     parent::run();
   }
 
