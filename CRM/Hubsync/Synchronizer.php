@@ -101,19 +101,23 @@ class CRM_Hubsync_Synchronizer {
         'return' => "custom_$hubID,custom_$updatedAtID",
       ];
       $result = civicrm_api3('Contact', 'get', $params);
-      if ($result['count'] > 0) {
+      if ($result['count'] == 1) {
+        // save the contact ID
+        $contactID = $result['values'][0]['id'];
+
         // OK, found. Check the update timestamp
         if ($result['values'][0]["custom_$updatedAtID"] == $dao->updated_at) {
           // the contact exists, and there are no changes
-          $status = 'already exists, and no changes - no sync needed';
-          $contactID = $result['values'][0]['id'];
+          $status = 'already exists, and same timestamp - no sync needed ';
         }
         else {
           // the contact exists, but the timestamp differs
-          $status = 'already exists, but timestap differs - sync needed';
+          $status = 'already exists, but timestamp differs - sync needed';
           $syncContact = TRUE;
-          $contactID = $result['values'][0]['id'];
         }
+      }
+      elseif ($result['count'] > 1) {
+        throw new Exception('Multiple contacts with HUB ID = ' . $dao->id);
       }
       else {
         // contact not found by HUB ID, try org name
@@ -124,99 +128,109 @@ class CRM_Hubsync_Synchronizer {
           'contact_type' => 'Organization',
         ];
         $result = civicrm_api3('Contact', 'get', $params);
-        if ($result['count'] > 0) {
+        if ($result['count'] == 1) {
+          // found by name, save the contact ID
+          $contactID = $result['values'][0]['id'];
+
           $status = 'already exists, but no HUB ID - sync needed';
           $syncContact = TRUE;
-          $contactID = $result['values'][0]['id'];
+        }
+        elseif ($result['count'] > 1) {
+          throw new Exception('Multiple contacts without HUB ID = ' . $dao->id . ' and name = ' . $dao->name);
         }
         else {
+          // not found
           $status = 'new contact - sync needed';
           $createContact = TRUE;
           $syncContact = TRUE;
         }
       }
 
-      if ($this->dryRun) {
+      if ($this->dryRun == TRUE || $syncContact == FALSE) {
         // just update the status
         $sqlUpdate = "update civicrm_beuc_hub_orgs set sync_status = '$status' where id = " . $dao->id;
         CRM_Core_DAO::executeQuery($sqlUpdate);
       }
       else {
-echo '<h1>' . $dao->name . '</h1>';
-        if ($contactID) {
+        // create or update the contact
+        $params = [
+          'sequential' => 1,
+          'organization_name' => $dao->name,
+          "custom_$hubID" => $dao->id,
+          "custom_$updatedAtID" => $dao->updated_at,
+        ];
+        if ($createContact) {
+          $params['contact_type'] = 'Organization';
+          $status = 'new contact - created';
+        }
+        else {
           $params['id'] = $contactID;
           $status = 'already exists, but timestap differs - synchronized';
         }
+        $result = civicrm_api3('Contact', 'create', $params);
+        $contactID = $result['id'];
 
-        if ($syncContact || $createContact) {
-          // create of update the contact
-          $params['organization_name'] = $dao->name;
-          $params["custom_$hubID"] = $dao->id;
-          $params["custom_$updatedAtID"] = $dao->updated_at;
-          $result = civicrm_api3('Contact', 'create', $params);
-
-          if ($createContact) {
-            die('ok');
-            $contactID = $result['id'];
-            $status = 'new contact - synchronized';
-          }
-
-          // update the email address (if needed)
-          if ($dao->email && $dao->email != 'NULL') {
-            // see if the email exists in civi
-            $params = [
-              'contact_id' => $contactID,
-              'is_primary' => 1,
-              'sequential' => 1,
-            ];
-            $result = civicrm_api3('Email', 'get', $params);
-            if ($result['count'] > 0 && $result['count'][0]['email'] != $dao->email) {
+        // update the email address (if needed)
+        if ($dao->email && $dao->email != 'NULL') {
+          // see if the email exists in civi
+          $params = [
+            'contact_id' => $contactID,
+            'is_primary' => 1,
+            'sequential' => 1,
+          ];
+          $result = civicrm_api3('Email', 'get', $params);
+          if ($result['count'] > 0) {
+            if ($result['values'][0]['email'] != $dao->email) {
               // update
               $params['id'] = $result['values'][0]['id'];
               $params['email'] = $dao->email;
               civicrm_api3('Email', 'create', $params);
             }
-            else {
-              // create
-              $params['email'] = $dao->email;
-              $params['location_type_id'] = 2;
-              civicrm_api3('Email', 'create', $params);
-            }
           }
+          else {
+            // create
+            $params['email'] = $dao->email;
+            $params['location_type_id'] = 2;
+            civicrm_api3('Email', 'create', $params);
+          }
+        }
 
-          // update the phone (if needed)
-          if ($dao->tel) {
-            // see if the phone exists in civi
-            $params = [
-              'contact_id' => $contactID,
-              'is_primary' => 1,
-              'sequential' => 1,
-            ];
-            $result = civicrm_api3('Phone', 'get', $params);
-            if ($result['count'] > 0 && $result['count'][0]['phone'] != $dao->tel) {
+        // update the phone (if needed)
+        if ($dao->tel) {
+          // see if the phone exists in civi
+          $params = [
+            'contact_id' => $contactID,
+            'is_primary' => 1,
+            'sequential' => 1,
+          ];
+          $result = civicrm_api3('Phone', 'get', $params);
+          if ($result['count'] > 0) {
+            if ($result['values'][0]['phone'] != $dao->tel) {
               // update
               $params['id'] = $result['values'][0]['id'];
               $params['phone'] = $dao->tel;
               civicrm_api3('Phone', 'create', $params);
             }
-            else {
-              // create
-              $params['phone'] = $dao->tel;
-              $params['location_type_id'] = 2;
-              $params['phone_type_id'] = 1;
-              civicrm_api3('Phone', 'create', $params);
-            }
           }
+          else {
+            // create
+            $params['phone'] = $dao->tel;
+            $params['location_type_id'] = 2;
+            $params['phone_type_id'] = 1;
+            civicrm_api3('Phone', 'create', $params);
+          }
+        }
 
-          // update the address (if needed)
-          if ($dao->address) {
-            $params = [
-              'contact_id' => $contactID,
-              'is_primary' => 1,
-              'sequential' => 1,
-            ];
-            $result = civicrm_api3('Address', 'get', $params);
-            if ($result['count'] > 0 && ($result['count'][0]['street_address'] != $dao->address || $result['count'][0]['city'] != $dao->city)) {
+        // update the address (if needed)
+        if ($dao->address) {
+          $params = [
+            'contact_id' => $contactID,
+            'is_primary' => 1,
+            'sequential' => 1,
+          ];
+          $result = civicrm_api3('Address', 'get', $params);
+          if ($result['count'] > 0) {
+            if ($result['values'][0]['street_address'] != $dao->address || $result['values'][0]['city'] != $dao->city) {
               // update
               $params['id'] = $result['values'][0]['id'];
               $params['street_address'] = $dao->address;
@@ -225,28 +239,24 @@ echo '<h1>' . $dao->name . '</h1>';
               $params['country_id'] = $this->getCountryID($dao->country);
               civicrm_api3('Address', 'create', $params);
             }
-            else {
-              // create
-              $params['street_address'] = $dao->address;
-              $params['city'] = $dao->city;
-              $params['postal_code'] = $dao->postcode;
-              $params['country_id'] = $this->getCountryID($dao->country);
-              $params['location_type_id'] = 2;
-              civicrm_api3('Address', 'create', $params);
-            }
+          }
+          else {
+            // create
+            $params['street_address'] = $dao->address;
+            $params['city'] = $dao->city;
+            $params['postal_code'] = $dao->postcode;
+            $params['country_id'] = $this->getCountryID($dao->country);
+            $params['location_type_id'] = 2;
+            civicrm_api3('Address', 'create', $params);
           }
         }
-        else {
-          $status = 'already exists, timestap are equal - no sync needed';
-        }
-echo $status;
+
+        // update the status
         $sqlUpdate = "update civicrm_beuc_hub_orgs set sync_status = '$status' where id = " . $dao->id;
         CRM_Core_DAO::executeQuery($sqlUpdate);
       }
     }
-
   }
-
 
   private function getCountryID($country) {
     if ($country) {

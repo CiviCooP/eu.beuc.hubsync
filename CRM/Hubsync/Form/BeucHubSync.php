@@ -44,7 +44,7 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
         break;
       case 'sync':
         $this->syncData();
-        //CRM_Utils_System::redirect(CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'));
+        CRM_Utils_System::redirect(CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'));
         break;
       default:
         CRM_Core_Session::setStatus("Unknown action: $action", '', 'error');
@@ -98,15 +98,13 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
   }
 
   public function syncData() {
-    $status = '<br>';
-
     try {
       $synchronizer = new CRM_Hubsync_Synchronizer(FALSE);
-      $synchronizer->syncPriorities();
+      //$synchronizer->syncPriorities();
       $synchronizer->syncOrgs();
     }
     catch (Exception $e) {
-      CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');
+      CRM_Core_Session::setStatus($e->getFile() . ', line ' . $e->getLine() . '<br><br>' . $e->getMessage(), 'Error', 'error');
     }
   }
 
