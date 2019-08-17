@@ -2,9 +2,17 @@
 
 class CRM_Hubsync_Synchronizer {
   private $dryRun = TRUE;
+  private $custom_field_hub_id;
+  private $custom_field_updated_at;
 
   public function __construct($dryRun) {
     $this->dryRun = $dryRun;
+
+    // get the name of the custom field HUB ID, and Updated At
+    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'hub_id']);
+    $this->custom_field_hub_id = 'custom_' . $result['id'];
+    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'updated_at']);
+    $this->custom_field_updated_at = 'custom_' . $result['id'];
   }
 
   public function syncPriorities() {
@@ -50,63 +58,34 @@ class CRM_Hubsync_Synchronizer {
   }
 
   public function syncUsers() {
-    // clear the sync status
-    $sql = "update civicrm_beuc_hub_users set sync_status = NULL";
-    CRM_Core_DAO::executeQuery($sql);
-
-    // loop over all users
-    $sql = "select * from civicrm_beuc_hub_users";
-    $dao = CRM_Core_DAO::executeQuery($sql);
-    while ($dao->fetch()) {
-
-      $params = [
-        'sequential' => 1,
-        'is_deleted' => 0,
-        'first_name' => $dao->first_name,
-        'last_name' => $dao->last_name,
-        'api.create.email' => [
-          'location_type_id' => 2,
-          'email' => $dao->email,
-        ],
-      ];
-
-    }
+    $this->syncContacts('users');
   }
 
   public function syncOrgs() {
+    $this->syncContacts('orgs');
+  }
+
+  private function syncContacts($contactType) {
     $createContact = FALSE;
     $syncContact = FALSE;
     $contactID = 0;
 
-    // get the ID of the custm field HUB ID, and Updated At
-    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'hub_id']);
-    $hubID = $result['id'];
-    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'updated_at']);
-    $updatedAtID = $result['id'];
-
     // clear the sync status
-    $sql = "update civicrm_beuc_hub_orgs set sync_status = NULL";
+    $sql = "update civicrm_beuc_hub_$contactType set sync_status = NULL";
     CRM_Core_DAO::executeQuery($sql);
 
-    // loop over all orgs
-    $sql = "select * from civicrm_beuc_hub_orgs";
+    // loop over all contacts in civicrm_beuc_hub_orgs or civicrm_beuc_hub_users table
+    $sql = "select * from civicrm_beuc_hub_$contactType";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
       // lookup contact by HUB id
-      $params = [
-        'sequential' => 1,
-        'is_deleted' => 0,
-        'contact_type' => 'Organization',
-        "custom_$hubID" => $dao->id,
-        'return' => "custom_$hubID,custom_$updatedAtID",
-      ];
-      $result = civicrm_api3('Contact', 'get', $params);
+      $result = $this->findContactByHubID($contactType, $dao->id);
       if ($result['count'] == 1) {
         // save the contact ID
         $contactID = $result['values'][0]['id'];
 
         // OK, found. Check the update timestamp
-        if ($result['values'][0]["custom_$updatedAtID"] == $dao->updated_at) {
+        if ($result['values'][0][$this->custom_field_updated_at] == $dao->updated_at) {
           // the contact exists, and there are no changes
           $status = 'already exists, and same timestamp - no sync needed ';
         }
@@ -120,23 +99,23 @@ class CRM_Hubsync_Synchronizer {
         throw new Exception('Multiple contacts with HUB ID = ' . $dao->id);
       }
       else {
-        // contact not found by HUB ID, try org name
-        $params = [
-          'sequential' => 1,
-          'is_deleted' => 0,
-          'organization_name' => $dao->name,
-          'contact_type' => 'Organization',
-        ];
-        $result = civicrm_api3('Contact', 'get', $params);
-        if ($result['count'] == 1) {
-          // found by name, save the contact ID
-          $contactID = $result['values'][0]['id'];
+        // contact not found by HUB ID, try by name
+        if ($contactType == 'users') {
+          $contactID = $this->findIndividualByNameAndEmail($dao);
+        }
+        else {
+          $contactID = $this->findOrgByName($dao);
+        }
 
+        // see if we found the contact by name
+        if ($contactID > 0) {
+          // OK
           $status = 'already exists, but no HUB ID - sync needed';
           $syncContact = TRUE;
         }
-        elseif ($result['count'] > 1) {
-          throw new Exception('Multiple contacts without HUB ID = ' . $dao->id . ' and name = ' . $dao->name);
+        elseif ($contactID == -1) {
+          // multiple contacts
+          $status = 'multiple contacts with that name - please merge contacts or manually fill in the HUB ID';
         }
         else {
           // not found
@@ -148,19 +127,31 @@ class CRM_Hubsync_Synchronizer {
 
       if ($this->dryRun == TRUE || $syncContact == FALSE) {
         // just update the status
-        $sqlUpdate = "update civicrm_beuc_hub_orgs set sync_status = '$status' where id = " . $dao->id;
+        $sqlUpdate = "update civicrm_beuc_hub_$contactType set sync_status = '$status' where id = " . $dao->id;
         CRM_Core_DAO::executeQuery($sqlUpdate);
       }
       else {
         // create or update the contact
         $params = [
           'sequential' => 1,
-          'organization_name' => $dao->name,
-          "custom_$hubID" => $dao->id,
-          "custom_$updatedAtID" => $dao->updated_at,
+          $this->custom_field_hub_id => $dao->id,
+          $this->custom_field_updated_at => $dao->updated_at,
         ];
-        if ($createContact) {
+
+        if ($contactType == 'users') {
+          $employer = $this->findContactByHubID('orgs', $dao->org_id);
+
+          $params['first_name'] = $dao->first_name;
+          $params['last_name'] = $dao->last_name;
+          $params['employer_id'] = $employer['values'][0]['id'];
+          $params['contact_type'] = 'Individual';
+        }
+        else {
+          $params['organization_name'] = $dao->name;
           $params['contact_type'] = 'Organization';
+        }
+
+        if ($createContact) {
           $status = 'new contact - created';
         }
         else {
@@ -221,8 +212,35 @@ class CRM_Hubsync_Synchronizer {
           }
         }
 
+        // update the mobile phone (if needed)
+        if ($contactType == 'users' && $dao->mobile) {
+          // see if the mobile phone exists in civi
+          $params = [
+            'contact_id' => $contactID,
+            'location_type_id' => 2,
+            'phone_type_id' => 2,
+            'sequential' => 1,
+          ];
+          $result = civicrm_api3('Phone', 'get', $params);
+          if ($result['count'] > 0) {
+            if ($result['values'][0]['phone'] != $dao->mobile) {
+              // update
+              $params['id'] = $result['values'][0]['id'];
+              $params['phone'] = $dao->mobile;
+              civicrm_api3('Phone', 'create', $params);
+            }
+          }
+          else {
+            // create
+            $params['phone'] = $dao->mobile;
+            $params['location_type_id'] = 2;
+            $params['phone_type_id'] = 2;
+            civicrm_api3('Phone', 'create', $params);
+          }
+        }
+
         // update the address (if needed)
-        if ($dao->address) {
+        if ($contactType == 'orgs' && $dao->address) {
           $params = [
             'contact_id' => $contactID,
             'is_primary' => 1,
@@ -251,11 +269,103 @@ class CRM_Hubsync_Synchronizer {
           }
         }
 
+        if ($contactType == 'users') {
+          $this->createOrUpdateUserPriorities($contactID, $dao->priorities);
+        }
+
         // update the status
         $sqlUpdate = "update civicrm_beuc_hub_orgs set sync_status = '$status' where id = " . $dao->id;
         CRM_Core_DAO::executeQuery($sqlUpdate);
       }
     }
+  }
+
+  private function findOrgByName($dao) {
+    $contactID = 0;
+
+    $params = [
+      'sequential' => 1,
+      'is_deleted' => 0,
+      'organization_name' => $dao->name,
+      'contact_type' => 'Organization',
+    ];
+    $result = civicrm_api3('Contact', 'get', $params);
+    if ($result['count'] == 1) {
+      $contactID = $result['values'][0];
+    }
+    elseif ($result['count'] > 1) {
+      $contactID = -1;
+    }
+
+    return $contactID;
+  }
+
+  private function findIndividualByNameAndEmail($dao) {
+    $contactID = 0;
+
+    // try to find by e-mail address
+    $sql = "
+      select
+        c.id,
+        c.first_name,
+        c.last_name
+      from
+        civicrm_contact c
+      inner join
+        civicrm_email e on e.contact_id = c.id
+      where 
+        c.is_deleted = 0
+      and
+        c.contact_type = 'Individual'
+      and
+        e.email = %1
+    ";
+    $sqlParams = [
+      1 => [$dao->email, 'String'],
+    ];
+    $contactDao = CRM_Core_DAO::executeQuery($sql, $sqlParams);
+
+    if ($contactDao->N == 1) {
+      // gotcha
+      $contactDao->fetch();
+      $contactID = $contactDao->id;
+    }
+    else {
+      // try by name
+      $params = [
+        'sequential' => 1,
+        'is_deleted' => 0,
+        'first_name' => $dao->first_name,
+        'last_name' => $dao->last_name,
+        'contact_type' => 'Individual',
+      ];
+      $result = civicrm_api3('Contact', 'get', $params);
+      if ($result['count'] == 1) {
+        $contactID = $result['values'][0];
+      }
+      elseif ($result['count'] > 1) {
+        $contactID = -1;
+      }
+    }
+
+    return $contactID;
+  }
+
+  private function findContactByHubID($contactType, $hubID) {
+    $params = [
+      'sequential' => 1,
+      'is_deleted' => 0,
+      'contact_type' => $contactType == 'users' ? 'Individual' : 'Organization',
+      $this->custom_field_hub_id => $hubID,
+      'return' => "{$this->custom_field_hub_id},{$this->custom_field_updated_at}",
+    ];
+    $result = civicrm_api3('Contact', 'get', $params);
+
+    return $result;
+  }
+
+  private function createOrUpdateUserPriorities($contactID, $priorities) {
+    // TODO
   }
 
   private function getCountryID($country) {
