@@ -5,7 +5,10 @@
   <p>Please note that these settings are confidential.</p>
 </div>
 
-{* FIELD EXAMPLE: OPTION 1 (AUTOMATIC LAYOUT) *}
+<p>
+  <a href="{$mainPage}">&lt; Return to the main page</a>
+  <br>
+</p>
 
 {foreach from=$elementNames item=elementName}
   <div class="crm-section">

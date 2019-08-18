@@ -6,6 +6,10 @@ class CRM_Hubsync_Form_BeucHubSyncSettings extends CRM_Core_Form {
   public function buildQuickForm() {
     CRM_Utils_System::setTitle('BEUC HUB Sync - Settings');
 
+    // the url of the main hub sync page
+    $mainURL = CRM_Utils_System::url('civicrm/beuchubsync', 'reset=1');
+    $this->assign('mainPage', $mainURL);
+
     // add fields
     $this->add('text', 'beuchub_endpoint', 'Endpoint', ['style' => 'width: 300px'], TRUE);
     $this->add('text', 'beuchub_private_key', 'Private Key', ['style' => 'width: 300px'], TRUE);

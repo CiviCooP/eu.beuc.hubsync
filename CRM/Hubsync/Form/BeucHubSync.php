@@ -88,10 +88,8 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
     $status = '<br>';
 
     try {
-      $synchronizer = new CRM_Hubsync_Synchronizer(TRUE);
-      $synchronizer->syncPriorities();
-      $synchronizer->syncOrgs();
-      $synchronizer->syncUsers();
+      $synchronizer = new CRM_Hubsync_Synchronizer();
+      $synchronizer->syncAll(TRUE);
     }
     catch (Exception $e) {
       CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');
@@ -100,10 +98,8 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
 
   public function syncData() {
     try {
-      $synchronizer = new CRM_Hubsync_Synchronizer(FALSE);
-      $synchronizer->syncPriorities();
-      $synchronizer->syncOrgs();
-      $synchronizer->syncUsers();
+      $synchronizer = new CRM_Hubsync_Synchronizer();
+      $synchronizer->syncAll(FALSE);
     }
     catch (Exception $e) {
       CRM_Core_Session::setStatus($e->getFile() . ', line ' . $e->getLine() . '<br><br>' . $e->getMessage(), 'Error', 'error');
