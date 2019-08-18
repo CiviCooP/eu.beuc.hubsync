@@ -365,7 +365,47 @@ class CRM_Hubsync_Synchronizer {
   }
 
   private function createOrUpdateUserPriorities($contactID, $priorities) {
-    // TODO
+    // create an array with the HUB priority ID as key, and the corresponding CiviCRM group ID as value
+    $sql = "
+      select
+	      id civicrm_id,
+	      CONVERT(
+          replace(name,	'hub_priority_',	''),
+	        UNSIGNED INTEGER
+	      ) hub_id
+      from
+	      civicrm_group
+      where
+	      name like 'hub_priority_%'
+      order by
+	      2
+    ";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    $civiAndhubID = $dao->fetchMap('hub_id', 'civicrm_id');
+
+    // remove all priority groups for that contact
+    $sql = "
+      delete from 
+        civicrm_group_contact
+      where      
+        contact_id = 4
+      and
+        group_id in (select id from civicrm_group where name like 'hub_priority_%')
+    ";
+    CRM_Core_DAO::executeQuery($sql);
+
+    // now add the groups
+    if ($priorities) {
+      $prioArr = explode(',', $priorities);
+      foreach ($prioArr as $prioID) {
+        $params = [
+          'sequential' => 1,
+          'contact_id' => $contactID,
+          'group_id' => $civiAndhubID[$prioID],
+        ];
+        civicrm_api3('GroupContact', 'create', $params);
+      }
+    }
   }
 
   private function getCountryID($country) {

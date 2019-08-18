@@ -89,8 +89,8 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
 
     try {
       $synchronizer = new CRM_Hubsync_Synchronizer(TRUE);
-      //$synchronizer->syncPriorities();
-      //$synchronizer->syncOrgs();
+      $synchronizer->syncPriorities();
+      $synchronizer->syncOrgs();
       $synchronizer->syncUsers();
     }
     catch (Exception $e) {
