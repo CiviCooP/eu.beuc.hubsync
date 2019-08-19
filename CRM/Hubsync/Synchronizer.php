@@ -376,7 +376,7 @@ class CRM_Hubsync_Synchronizer {
       ];
       $result = civicrm_api3('Contact', 'get', $params);
       if ($result['count'] == 1) {
-        $contactID = $result['values'][0];
+        $contactID = $result['values'][0]['id'];
       }
       elseif ($result['count'] > 1) {
         $contactID = -1;
