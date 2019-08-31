@@ -72,11 +72,11 @@ class CRM_Hubsync_Form_BeucHubSyncSettings extends CRM_Core_Form {
   private function testConnection() {
     try {
       // get the data from the HUB
-      $helper = new CRM_Hubsync_Helper();
-      $retval = $helper->getRemoteData();
+      $connector = new CRM_Hubsync_Connector();
+      $fetcher = new CRM_Hubsync_Fetcher($connector->getConnectionURL());
+      $retval = $fetcher->getRemoteData();
       if ($retval === TRUE) {
         CRM_Core_Session::setStatus('Connection with HUB is OK!', '', 'success');
-        CRM_Core_Error::debug('alain', $helper->data);
       }
       else {
         CRM_Core_Session::setStatus('Connection with HUB failed.', '', 'error');
