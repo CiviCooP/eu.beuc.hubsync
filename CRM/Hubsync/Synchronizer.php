@@ -180,8 +180,12 @@ class CRM_Hubsync_Synchronizer {
           $params['contact_type'] = 'Individual';
         }
         else {
-          $params['organization_name'] = $dao->name;
           $params['contact_type'] = 'Organization';
+
+          // for existing organizations we do not overwrite the name!
+          if ($createContact) {
+            $params['organization_name'] = $dao->name;
+          }
         }
 
         if ($createContact) {
@@ -318,6 +322,7 @@ class CRM_Hubsync_Synchronizer {
   private function findOrgByName($dao) {
     $contactID = 0;
 
+    // find org by name
     $params = [
       'sequential' => 1,
       'is_deleted' => 0,
@@ -325,6 +330,18 @@ class CRM_Hubsync_Synchronizer {
       'contact_type' => 'Organization',
     ];
     $result = civicrm_api3('Contact', 'get', $params);
+
+    // not found, try by name + initials
+    if ($result['count'] == 0) {
+      $params = [
+        'sequential' => 1,
+        'is_deleted' => 0,
+        'organization_name' => $dao->name . ' - ' . $dao->initials,
+        'contact_type' => 'Organization',
+      ];
+      $result = civicrm_api3('Contact', 'get', $params);
+    }
+
     if ($result['count'] == 1) {
       $contactID = $result['values'][0]['id'];
     }

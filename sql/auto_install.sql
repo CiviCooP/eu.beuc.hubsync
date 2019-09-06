@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `civicrm_beuc_hub_priorities` (
 CREATE TABLE IF NOT EXISTS `civicrm_beuc_hub_orgs` (
   `id` int(10),
   `name` varchar(255),
+  `initials` varchar(255),
   `status` varchar(255),
   `email` varchar(255),
   `tel` varchar(255),

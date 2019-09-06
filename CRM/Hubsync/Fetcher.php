@@ -57,19 +57,20 @@ class CRM_Hubsync_Fetcher {
     $sql = "TRUNCATE TABLE civicrm_beuc_hub_orgs";
     CRM_Core_DAO::executeQuery($sql);
 
-    $sql = "insert into civicrm_beuc_hub_orgs (id, name, status, email, tel, address, city, postcode, country, updated_at) values (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10)";
+    $sql = "insert into civicrm_beuc_hub_orgs (id, name, initials, status, email, tel, address, city, postcode, country, updated_at) values (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11)";
     foreach ($this->data->orgs as $org) {
       $sqlParams = [
         1 => [$org->id, 'Integer'],
         2 => [$org->name . '', 'String'],
-        3 => [$org->status . '', 'String'],
-        4 => [$org->email . '', 'String'],
-        5 => [$org->address->tel . '', 'String'],
-        6 => [$org->address->address . '', 'String'],
-        7 => [$org->address->city . '', 'String'],
-        8 => [$org->address->postcode . '', 'String'],
-        9 => [$org->address->country . '', 'String'],
-        10 => [$org->updated_at . '', 'String'],
+        3 => [$org->initials . '', 'String'],
+        4 => [$org->status . '', 'String'],
+        5 => [$org->email . '', 'String'],
+        6 => [$org->address->tel . '', 'String'],
+        7 => [$org->address->address . '', 'String'],
+        8 => [$org->address->city . '', 'String'],
+        9 => [$org->address->postcode . '', 'String'],
+        10 => [$org->address->country . '', 'String'],
+        11 => [$org->updated_at . '', 'String'],
       ];
 
       CRM_Core_DAO::executeQuery($sql, $sqlParams);
