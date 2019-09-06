@@ -56,7 +56,6 @@ class CRM_Hubsync_Synchronizer {
       'title' => 'BEUC HUB Sync',
       'queue' => $queue,
       'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
-      /*'onEnd' => ['CRM_Hubsync_Synchronizer', 'onEnd'],*/
       'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
     ]);
     $runner->runAllViaWeb();
@@ -181,11 +180,7 @@ class CRM_Hubsync_Synchronizer {
         }
         else {
           $params['contact_type'] = 'Organization';
-
-          // for existing organizations we do not overwrite the name!
-          if ($createContact) {
-            $params['organization_name'] = $dao->name;
-          }
+          $params['organization_name'] = $dao->name;
         }
 
         if ($createContact) {
