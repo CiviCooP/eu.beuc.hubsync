@@ -82,19 +82,20 @@ class CRM_Hubsync_Fetcher {
     $sql = "TRUNCATE TABLE civicrm_beuc_hub_users";
     CRM_Core_DAO::executeQuery($sql);
 
-    $sql = "insert into civicrm_beuc_hub_users (id, first_name, last_name, org_id, email, tel, mobile, deleted, priorities, updated_at) values (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10)";
+    $sql = "insert into civicrm_beuc_hub_users (id, first_name, last_name, org_id, job_title, email, tel, mobile, is_deleted, priorities, updated_at) values (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11)";
     foreach ($this->data->users as $user) {
       $sqlParams = [
         1 => [$user->id, 'Integer'],
         2 => [$user->first_name, 'String'],
         3 => [$user->last_name, 'String'],
         4 => [$user->org_id, 'Integer'],
-        5 => [$user->email, 'String'],
-        6 => [$user->tel, 'String'],
-        7 => [$user->mobile, 'String'],
-        8 => [$user->deleted, 'Integer'],
-        9 => [implode(',', $user->priorities), 'String'],
-        10 => [$user->updated_at, 'String'],
+        5 => [$user->job_title, 'String'],
+        6 => [$user->email, 'String'],
+        7 => [$user->tel, 'String'],
+        8 => [$user->mobile, 'String'],
+        9 => [$user->deleted, 'Integer'],
+        10 => [implode(',', $user->priorities), 'String'],
+        11 => [$user->updated_at, 'String'],
       ];
 
       CRM_Core_DAO::executeQuery($sql, $sqlParams);

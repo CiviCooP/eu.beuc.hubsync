@@ -2,11 +2,14 @@
 
 class CRM_Hubsync_Synchronizer {
   public function syncAll($dryRun = FALSE) {
-    // get the name of the custom field HUB ID, and Updated At
+    // get the name of the custom field HUB ID, Updated At, Deleted in HUB
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'hub_id']);
     $custom_field_hub_id = 'custom_' . $result['id'];
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'updated_at']);
     $custom_field_updated_at = 'custom_' . $result['id'];
+    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'deleted_in_hub']);
+    $custom_field_deleted_in_hub = 'custom_' . $result['id'];
+
 
     // clear the sync status of the priorities temp table
     $sql = "update civicrm_beuc_hub_priorities set sync_status = NULL";
@@ -39,15 +42,23 @@ class CRM_Hubsync_Synchronizer {
     $sql = "select id from civicrm_beuc_hub_orgs";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'orgs', $dao->id, $custom_field_hub_id, $custom_field_updated_at]);
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'orgs', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
       $queue->createItem($task);
     }
 
-    // store all users in the queue
-    $sql = "select id from civicrm_beuc_hub_users";
+    // store all the not deleted users in the queue
+    $sql = "select id from civicrm_beuc_hub_users where is_deleted = 0";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'users', $dao->id, $custom_field_hub_id, $custom_field_updated_at]);
+     $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'users', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
+     $queue->createItem($task);
+    }
+
+    // store all the deleted users in the queue
+    $sql = "select id from civicrm_beuc_hub_users where is_deleted = 1";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    while ($dao->fetch()) {
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncDeletedContactTask'], [$dryRun, 'users', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
       $queue->createItem($task);
     }
 
@@ -101,7 +112,7 @@ class CRM_Hubsync_Synchronizer {
     return TRUE;
   }
 
-  public static function syncContactTask(CRM_Queue_TaskContext $ctx, $dryRun, $contactType, $id, $custom_field_hub_id, $custom_field_updated_at) {
+  public static function syncContactTask(CRM_Queue_TaskContext $ctx, $dryRun, $contactType, $id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub) {
     $createContact = FALSE;
     $syncContact = FALSE;
     $contactID = 0;
@@ -111,7 +122,7 @@ class CRM_Hubsync_Synchronizer {
     $dao = CRM_Core_DAO::executeQuery($sql);
     if ($dao->fetch()) {
       // lookup contact by HUB id
-      $result = self::findContactByHubID($contactType, $dao->id, $custom_field_hub_id, $custom_field_updated_at);
+      $result = self::findContactByHubID($contactType, $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub);
       if ($result['count'] == 1) {
         // save the contact ID
         $contactID = $result['values'][0]['id'];
@@ -119,7 +130,7 @@ class CRM_Hubsync_Synchronizer {
         // OK, found. Check the update timestamp
         if ($result['values'][0][$custom_field_updated_at] == $dao->updated_at) {
           // the contact exists, and there are no changes
-          $status = 'already exists, and same timestamp - no sync needed ';
+          $status = 'already exists, and same timestamp - no sync needed';
         }
         else {
           // the contact exists, but the timestamp differs
@@ -133,7 +144,7 @@ class CRM_Hubsync_Synchronizer {
       else {
         // contact not found by HUB ID, try by name
         if ($contactType == 'users') {
-          $contactID = self::findIndividualByNameAndEmail($dao);
+          $contactID = self::findIndividualByNameAndEmail($dao, $custom_field_hub_id);
         }
         else {
           $contactID = self::findOrgByName($dao);
@@ -171,11 +182,12 @@ class CRM_Hubsync_Synchronizer {
         ];
 
         if ($contactType == 'users') {
-          $employer = self::findContactByHubID('orgs', $dao->org_id, $custom_field_hub_id, $custom_field_updated_at);
+          $employer = self::findContactByHubID('orgs', $dao->org_id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub);
 
           $params['first_name'] = $dao->first_name;
           $params['last_name'] = $dao->last_name;
           $params['employer_id'] = $employer['values'][0]['id'];
+          $params['job_title'] = $dao->job_title;
           $params['contact_type'] = 'Individual';
         }
         else {
@@ -314,6 +326,111 @@ class CRM_Hubsync_Synchronizer {
     return TRUE;
   }
 
+  public static function syncDeletedContactTask(CRM_Queue_TaskContext $ctx, $dryRun, $contactType, $id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub) {
+    $createContact = FALSE;
+    $syncContact = FALSE;
+    $contactID = 0;
+
+    // get the contact
+    $sql = "select * from civicrm_beuc_hub_users where id = $id";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    if ($dao->fetch()) {
+      // lookup contact by HUB id
+      $result = self::findContactByHubID($contactType, $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub);
+      if ($result['count'] == 1) {
+        // save the contact ID
+        $contactID = $result['values'][0]['id'];
+
+        // OK, found. Check the "deleted" flag
+        if ($result['values'][0][$custom_field_deleted_in_hub] == 1) {
+          // already flagged as deleted
+          $status = 'already flagged as deleted - no sync needed';
+        }
+        else {
+          // the contact exists, but it's not flagged
+          $status = 'already exists, but not flagged as deleted - sync needed';
+          $syncContact = TRUE;
+        }
+      }
+      elseif ($result['count'] > 1) {
+        throw new Exception('Multiple contacts with HUB ID = ' . $dao->id);
+      }
+      else {
+        // contact not found by HUB ID, try by name
+        $contactID = self::findIndividualByNameAndEmail($dao, $custom_field_hub_id);
+        if ($contactID > 0) {
+          // OK
+          $status = 'already exists, but no HUB ID and not flagged as deleted - sync needed';
+          $syncContact = TRUE;
+        }
+        elseif ($contactID == -1) {
+          // multiple contacts
+          $status = 'multiple contacts with that name - please merge contacts or manually fill in the HUB ID';
+        }
+        else {
+          // not found
+          $status = 'deleted contact not in civicrm - no action needed';
+        }
+      }
+
+      if ($dryRun == TRUE || $syncContact == FALSE) {
+        // just update the status
+        $sqlUpdate = "update civicrm_beuc_hub_$contactType set sync_status = '$status' where id = " . $dao->id;
+        CRM_Core_DAO::executeQuery($sqlUpdate);
+      }
+      else {
+        // flag as deleted
+        $params = [
+          'sequential' => 1,
+          'id' => $contactID,
+          'job_title' => '',
+          $custom_field_hub_id => $dao->id,
+          $custom_field_updated_at => $dao->updated_at,
+          $custom_field_deleted_in_hub => 1,
+        ];
+        $result = civicrm_api3('Contact', 'create', $params);
+        $status = 'flagged as deleted';
+
+        // get the civi id of the employer
+        $employer = self::findContactByHubID('orgs', $dao->org_id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub);
+        if ($employer['count'] > 0) {
+          // end the relationships
+          $relationships = civicrm_api3('Relationship', 'get', [
+            'sequential' => 1,
+            'contact_id_a' => $contactID,
+            'contact_id_b' => $employer['values'][0]['id'],
+            'is_active' => 1,
+          ]);
+          for ($i = 0; $i < $relationships['count']; $i++) {
+            civicrm_api3('Relationship', 'create', [
+              'sequential' => 1,
+              'id' => $relationships['values'][0]['id'],
+              'end_date' => date('Y-m-d'),
+              'is_active' => 0,
+            ]);
+          }
+        }
+
+        // remove work phone, email, and address
+        $sql = "delete from civicrm_phone where contact_id = $contactID and location_type_id = 2";
+        CRM_Core_DAO::executeQuery($sql);
+        $sql = "delete from civicrm_email where contact_id = $contactID and location_type_id = 2";
+        CRM_Core_DAO::executeQuery($sql);
+        $sql = "delete from civicrm_address where contact_id = $contactID and location_type_id = 2";
+        CRM_Core_DAO::executeQuery($sql);
+
+        // remove from the priorities groups
+        self::createOrUpdateUserPriorities($contactID, '');
+
+        // update the status
+        $sqlUpdate = "update civicrm_beuc_hub_$contactType set sync_status = '$status' where id = " . $dao->id;
+        CRM_Core_DAO::executeQuery($sqlUpdate);
+      }
+    }
+
+    return TRUE;
+  }
+
   private function findOrgByName($dao) {
     $contactID = 0;
 
@@ -347,25 +464,30 @@ class CRM_Hubsync_Synchronizer {
     return $contactID;
   }
 
-  public static function findIndividualByNameAndEmail($dao) {
+  public static function findIndividualByNameAndEmail($dao, $custom_field_hub_id) {
     $contactID = 0;
 
-    // try to find by e-mail address
+    // try to find by e-mail address (and without hub id, because that search should be covered first)
     $sql = "
       select
         c.id,
         c.first_name,
-        c.last_name
+        c.last_name,
+        hub.hub_id
       from
         civicrm_contact c
       inner join
         civicrm_email e on e.contact_id = c.id
+      inner join 
+        civicrm_value_hub_sync_information hub on hub.entity_id = c.id
       where 
         c.is_deleted = 0
       and
         c.contact_type = 'Individual'
       and
         e.email = %1
+      and 
+        ifnull(hub.hub_id, 0) = 0
     ";
     $sqlParams = [
       1 => [$dao->email, 'String'],
@@ -385,12 +507,22 @@ class CRM_Hubsync_Synchronizer {
         'first_name' => $dao->first_name,
         'last_name' => $dao->last_name,
         'contact_type' => 'Individual',
+        'return' => [$custom_field_hub_id],
       ];
       $result = civicrm_api3('Contact', 'get', $params);
       if ($result['count'] == 1) {
-        $contactID = $result['values'][0]['id'];
+        // make sure the contact does not have a HUB ID
+        if ($result['values'][0][$custom_field_hub_id]) {
+          // error: this contact already has a HUB ID
+          $contactID = 0;
+        }
+        else {
+          // OK, found the contact
+          $contactID = $result['values'][0]['id'];
+        }
       }
       elseif ($result['count'] > 1) {
+        // error: multiple contacts found
         $contactID = -1;
       }
     }
@@ -398,13 +530,13 @@ class CRM_Hubsync_Synchronizer {
     return $contactID;
   }
 
-  public static function findContactByHubID($contactType, $hubID, $custom_field_hub_id, $custom_field_updated_at) {
+  public static function findContactByHubID($contactType, $hubID, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub) {
     $params = [
       'sequential' => 1,
       'is_deleted' => 0,
       'contact_type' => $contactType == 'users' ? 'Individual' : 'Organization',
       $custom_field_hub_id => $hubID,
-      'return' => "$custom_field_hub_id,$custom_field_updated_at",
+      'return' => "$custom_field_hub_id,$custom_field_updated_at,$custom_field_deleted_in_hub",
     ];
     $result = civicrm_api3('Contact', 'get', $params);
 
@@ -435,7 +567,7 @@ class CRM_Hubsync_Synchronizer {
       delete from 
         civicrm_group_contact
       where      
-        contact_id = 4
+        contact_id = $contactID
       and
         group_id in (select id from civicrm_group where name like 'hub_priority_%')
     ";
