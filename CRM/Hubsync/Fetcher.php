@@ -65,11 +65,11 @@ class CRM_Hubsync_Fetcher {
         3 => [$org->initials . '', 'String'],
         4 => [$org->status . '', 'String'],
         5 => [$org->email . '', 'String'],
-        6 => [$org->address->tel . '', 'String'],
-        7 => [$org->address->address . '', 'String'],
-        8 => [$org->address->city . '', 'String'],
-        9 => [$org->address->postcode . '', 'String'],
-        10 => [$org->address->country . '', 'String'],
+        6 => [isset($org->address->tel) ? $org->address->tel : '', 'String'],
+        7 => [isset($org->address->address) ? $org->address->address : '', 'String'],
+        8 => [isset($org->address->city) ? $org->address->city : '', 'String'],
+        9 => [isset($org->address->postcode) ? $org->address->postcode : '', 'String'],
+        10 => [isset($org->address->country) ? $org->address->country : '', 'String'],
         11 => [$org->updated_at . '', 'String'],
       ];
 
