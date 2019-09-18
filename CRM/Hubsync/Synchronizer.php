@@ -179,6 +179,7 @@ class CRM_Hubsync_Synchronizer {
           'sequential' => 1,
           $custom_field_hub_id => $dao->id,
           $custom_field_updated_at => $dao->updated_at,
+          $custom_field_deleted_in_hub => 0,
         ];
 
         if ($contactType == 'users') {
