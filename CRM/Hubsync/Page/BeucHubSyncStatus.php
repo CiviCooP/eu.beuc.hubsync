@@ -10,6 +10,18 @@ class CRM_Hubsync_Page_BeucHubSyncStatus extends CRM_Core_Page {
     $mainURL = CRM_Utils_System::url('civicrm/beuchubsync', 'reset=1');
     $this->assign('mainPage', $mainURL);
 
+    // get time of execution
+    $result = civicrm_api3('Setting', 'get', [
+      'sequential' => 1,
+      'return' => ["beuchubsynclastrun"],
+    ]);
+    if ($result['count'] > 0) {
+      $this->assign('lastRun', $result['values'][0]['beuchubsynclastrun']);
+    }
+    else {
+      $this->assign('lastRun', '');
+    }
+
     // get counts
     $countPriorities = CRM_Core_DAO::singleValueQuery("select count(*) from civicrm_beuc_hub_priorities");
     $this->assign('countPriorities', $countPriorities);

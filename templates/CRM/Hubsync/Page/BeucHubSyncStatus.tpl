@@ -2,7 +2,7 @@
     <a href="{$mainPage}">&lt; Return to the main page</a>
     <br>
 </p>
-
+<p>Synchronization started at: {$lastRun}</p>
 <h3>Priorities (count = {$countPriorities})</h3>
 <div class="crm-block crm-content-block">
     <table class="crm-info-panel">
