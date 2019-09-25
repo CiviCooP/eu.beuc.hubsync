@@ -13,6 +13,14 @@ class CRM_Hubsync_Page_BeucHubSyncStatus extends CRM_Core_Page {
     // get time of execution
     $this->assign('lastRun', Civi::settings()->get('beuchubsynclastrun'));
 
+    // get the number of items in the queue
+    $queue = CRM_Queue_Service::singleton()->create([
+      'type' => 'Sql',
+      'name' => 'beuchubsync',
+      'reset' => FALSE, // do not flush queue upon creation
+    ]);
+    $this->assign('queueItems', $queue->numberOfItems());
+
     // get counts
     $countPriorities = CRM_Core_DAO::singleValueQuery("select count(*) from civicrm_beuc_hub_priorities");
     $this->assign('countPriorities', $countPriorities);
