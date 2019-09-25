@@ -66,7 +66,7 @@
       <text_length>255</text_length>
       <note_columns>60</note_columns>
       <note_rows>4</note_rows>
-      <column_name>updated_at</column_name>
+      <column_name>deleted_in_hub</column_name>
       <custom_group_name>HUB_Sync_Information</custom_group_name>
     </CustomField>
   </CustomFields>
