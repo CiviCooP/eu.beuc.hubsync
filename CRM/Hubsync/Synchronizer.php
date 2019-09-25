@@ -1,7 +1,7 @@
 <?php
 
 class CRM_Hubsync_Synchronizer {
-  public function syncAll($dryRun = FALSE) {
+  public function syncAll($dryRun = FALSE, $interactive = TRUE) {
     // get the name of the custom field HUB ID, Updated At, Deleted in HUB
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'hub_id']);
     $custom_field_hub_id = 'custom_' . $result['id'];
@@ -69,7 +69,13 @@ class CRM_Hubsync_Synchronizer {
       'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
       'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
     ]);
-    $runner->runAllViaWeb();
+
+    if ($interactive) {
+      $runner->runAllViaWeb();
+    }
+    else {
+      $runner->runAll();
+    }
   }
 
   public static function syncPriorityTask(CRM_Queue_TaskContext $ctx, $dryRun, $id) {

@@ -31,7 +31,7 @@ function civicrm_api3_beuchubsync_Sync($params) {
     $synchronizer = new CRM_Hubsync_Synchronizer();
 
     $step = 'Synchronizing data';
-    $synchronizer->syncAll(FALSE);
+    $synchronizer->syncAll(FALSE, FALSE);
 
     return civicrm_api3_create_success('OK', $params, 'beuchubsync', 'Sync');
   }
