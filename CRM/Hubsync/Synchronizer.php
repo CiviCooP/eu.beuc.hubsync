@@ -72,7 +72,7 @@ class CRM_Hubsync_Synchronizer {
 
     // store the current date/time and execute (via GUI or silently)
     $lastRun = date('Y-m-d H:i:s') . ' - ' . ($interactive ? 'executed manually' : 'executed via api');
-    civicrm_api3('Setting', 'create', ['beuchubsynclastrun' => $lastRun]);
+    Civi::settings()->set('beuchubsynclastrun', $lastRun);
     if ($interactive) {
       $runner->runAllViaWeb();
     }
