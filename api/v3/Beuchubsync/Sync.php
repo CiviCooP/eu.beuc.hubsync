@@ -86,7 +86,7 @@ function civicrm_api3_beuchubsync_Sync($params) {
     $newPhase = ($phase + 1) % count($phaseDescriptions);
     Civi::settings()->set('beuchub_sync_phase', $newPhase);
 
-    return civicrm_api3_create_success('OK', $params, 'beuchubsync', 'Sync');
+    return civicrm_api3_create_success($phaseDescriptions[$phase], $params, 'beuchubsync', 'Sync');
   }
   catch (Exception $e) {
     throw new API_Exception('BEUC HUB Sync failed in phase "' . $phaseDescriptions[$phase] . '", step "' . $step . '"', 999);
