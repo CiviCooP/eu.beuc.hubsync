@@ -33,6 +33,10 @@ class CRM_Hubsync_Fetcher {
       $this->data = $convertedReturn;
     }
 
+    // store the current date/time
+    $lastRun = date('Y-m-d H:i:s') . ' - fetch data';
+    Civi::settings()->set('beuchubsynclastrun', $lastRun);
+
     return TRUE;
   }
 

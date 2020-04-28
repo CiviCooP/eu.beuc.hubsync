@@ -1,34 +1,32 @@
 <?php
 
 class CRM_Hubsync_Synchronizer {
-  public function syncAll($dryRun = FALSE, $interactive = TRUE) {
+  private $custom_field_hub_id;
+  private $custom_field_updated_at;
+  private $custom_field_deleted_in_hub;
+
+  public function __construct() {
     // get the name of the custom field HUB ID, Updated At, Deleted in HUB
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'hub_id']);
-    $custom_field_hub_id = 'custom_' . $result['id'];
+    $this->custom_field_hub_id = 'custom_' . $result['id'];
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'updated_at']);
-    $custom_field_updated_at = 'custom_' . $result['id'];
+    $this->custom_field_updated_at = 'custom_' . $result['id'];
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'deleted_in_hub']);
-    $custom_field_deleted_in_hub = 'custom_' . $result['id'];
+    $this->custom_field_deleted_in_hub = 'custom_' . $result['id'];
+  }
 
+  public function syncPriorities($queue, $dryRun = FALSE) {
+    $runNow = FALSE;
 
     // clear the sync status of the priorities temp table
     $sql = "update civicrm_beuc_hub_priorities set sync_status = NULL";
     CRM_Core_DAO::executeQuery($sql);
 
-    // clear the sync status of the orgs temp table
-    $sql = "update civicrm_beuc_hub_orgs set sync_status = NULL";
-    CRM_Core_DAO::executeQuery($sql);
-
-    // clear the sync status of the users temp table
-    $sql = "update civicrm_beuc_hub_users set sync_status = NULL";
-    CRM_Core_DAO::executeQuery($sql);
-
-    // create a queue
-    $queue = CRM_Queue_Service::singleton()->create([
-      'type' => 'Sql',
-      'name' => 'beuchubsync',
-      'reset' => TRUE, // flush queue upon creation
-    ]);
+    // see if we have to create a new queue
+    if ($queue === '') {
+      $queue = $this->getQueue();
+      $runNow = TRUE;
+    }
 
     // store all priorities in the queue
     $sql = "select id from civicrm_beuc_hub_priorities";
@@ -38,47 +36,142 @@ class CRM_Hubsync_Synchronizer {
       $queue->createItem($task);
     }
 
+    if ($runNow) {
+      // run the queue
+      $runner = new CRM_Queue_Runner([
+        'title' => 'BEUC HUB Sync',
+        'queue' => $queue,
+        'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
+        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
+      ]);
+      $runner->runAll();
+    }
+  }
+
+  public function syncOrganizations($queue, $dryRun = FALSE) {
+    $runNow = FALSE;
+
+    // clear the sync status of the orgs temp table
+    $sql = "update civicrm_beuc_hub_orgs set sync_status = NULL";
+    CRM_Core_DAO::executeQuery($sql);
+
+    // see if we have to create a new queue
+    if ($queue === '') {
+      $queue = $this->getQueue();
+      $runNow = TRUE;
+    }
+
     // store all orgs in the queue
     $sql = "select id from civicrm_beuc_hub_orgs";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'orgs', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'orgs', $dao->id, $this->custom_field_hub_id, $this->custom_field_updated_at, $this->custom_field_deleted_in_hub]);
       $queue->createItem($task);
+    }
+
+    if ($runNow) {
+      // run the queue
+      $runner = new CRM_Queue_Runner([
+        'title' => 'BEUC HUB Sync',
+        'queue' => $queue,
+        'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
+        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
+      ]);
+      $runner->runAll();
+    }
+  }
+
+  public function syncUsers($queue, $dryRun = FALSE) {
+    $runNow = FALSE;
+
+    // clear the sync status of the users temp table
+    $sql = "update civicrm_beuc_hub_users set sync_status = NULL";
+    CRM_Core_DAO::executeQuery($sql);
+
+    // see if we have to create a new queue
+    if ($queue === '') {
+      $queue = $this->getQueue();
+      $runNow = TRUE;
     }
 
     // store all the not deleted users in the queue
     $sql = "select id from civicrm_beuc_hub_users where is_deleted = 0";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-     $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'users', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
-     $queue->createItem($task);
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncContactTask'], [$dryRun, 'users', $dao->id, $this->custom_field_hub_id, $this->custom_field_updated_at, $this->custom_field_deleted_in_hub]);
+      $queue->createItem($task);
+    }
+
+    if ($runNow) {
+      // run the queue
+      $runner = new CRM_Queue_Runner([
+        'title' => 'BEUC HUB Sync',
+        'queue' => $queue,
+        'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
+        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
+      ]);
+      $runner->runAll();
+    }
+  }
+
+  public function processDeletedContacts($queue, $dryRun = FALSE) {
+    $runNow = FALSE;
+
+    // see if we have to create a new queue
+    if ($queue === '') {
+      $queue = $this->getQueue();
+      $runNow = TRUE;
     }
 
     // store all the deleted users in the queue
     $sql = "select id from civicrm_beuc_hub_users where is_deleted = 1";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncDeletedContactTask'], [$dryRun, 'users', $dao->id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub]);
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncDeletedContactTask'], [$dryRun, 'users', $dao->id, $this->custom_field_hub_id, $this->custom_field_updated_at, $this->custom_field_deleted_in_hub]);
       $queue->createItem($task);
     }
 
-    // run the queue
+    if ($runNow) {
+      // run the queue
+      $runner = new CRM_Queue_Runner([
+        'title' => 'BEUC HUB Sync',
+        'queue' => $queue,
+        'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
+        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
+      ]);
+      $runner->runAll();
+    }
+  }
+
+  public function syncAll($dryRun = FALSE) {
+    // create a queue
+    $queue = $this->getQueue();
+
+    // store everything in the queue
+    $this->syncPriorities($queue, $dryRun);
+    $this->syncOrganizations($queue, $dryRun);
+    $this->syncUsers($queue, $dryRun);
+    $this->processDeletedContacts($queue, $dryRun);
+
+    // run the queue via web
     $runner = new CRM_Queue_Runner([
       'title' => 'BEUC HUB Sync',
       'queue' => $queue,
       'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
       'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
     ]);
+    $runner->runAllViaWeb();
+  }
 
-    // store the current date/time and execute (via GUI or silently)
-    $lastRun = date('Y-m-d H:i:s') . ' - ' . ($interactive ? 'executed manually' : 'executed via api');
-    Civi::settings()->set('beuchubsynclastrun', $lastRun);
-    if ($interactive) {
-      $runner->runAllViaWeb();
-    }
-    else {
-      $runner->runAll();
-    }
+  private function getQueue() {
+    // create a queue
+    $queue = CRM_Queue_Service::singleton()->create([
+      'type' => 'Sql',
+      'name' => 'beuchubsync',
+      'reset' => TRUE, // flush queue upon creation
+    ]);
+
+    return $queue;
   }
 
   public static function syncPriorityTask(CRM_Queue_TaskContext $ctx, $dryRun, $id) {
@@ -488,15 +581,15 @@ class CRM_Hubsync_Synchronizer {
         civicrm_contact c
       inner join
         civicrm_email e on e.contact_id = c.id
-      inner join 
+      inner join
         civicrm_value_hub_sync_information hub on hub.entity_id = c.id
-      where 
+      where
         c.is_deleted = 0
       and
         c.contact_type = 'Individual'
       and
         e.email = %1
-      and 
+      and
         ifnull(hub.hub_id, 0) = 0
     ";
     $sqlParams = [
@@ -574,9 +667,9 @@ class CRM_Hubsync_Synchronizer {
 
     // remove all priority groups for that contact
     $sql = "
-      delete from 
+      delete from
         civicrm_group_contact
-      where      
+      where
         contact_id = $contactID
       and
         group_id in (select id from civicrm_group where name like 'hub_priority_%')

@@ -89,7 +89,7 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
 
     try {
       $synchronizer = new CRM_Hubsync_Synchronizer();
-      $synchronizer->syncAll(TRUE, TRUE);
+      $synchronizer->syncAll(TRUE);
     }
     catch (Exception $e) {
       CRM_Core_Session::setStatus($status . '<br><br>' . $e->getMessage(), 'Error', 'error');
@@ -99,7 +99,7 @@ class CRM_Hubsync_Form_BeucHubSync extends CRM_Core_Form {
   public function syncData() {
     try {
       $synchronizer = new CRM_Hubsync_Synchronizer();
-      $synchronizer->syncAll(FALSE, TRUE);
+      $synchronizer->syncAll(FALSE);
     }
     catch (Exception $e) {
       CRM_Core_Session::setStatus($e->getFile() . ', line ' . $e->getLine() . '<br><br>' . $e->getMessage(), 'Error', 'error');
