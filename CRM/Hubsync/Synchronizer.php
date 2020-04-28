@@ -42,7 +42,6 @@ class CRM_Hubsync_Synchronizer {
         'title' => 'BEUC HUB Sync',
         'queue' => $queue,
         'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
-        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
       ]);
       $runner->runAll();
     }
@@ -75,7 +74,6 @@ class CRM_Hubsync_Synchronizer {
         'title' => 'BEUC HUB Sync',
         'queue' => $queue,
         'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
-        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
       ]);
       $runner->runAll();
     }
@@ -108,7 +106,6 @@ class CRM_Hubsync_Synchronizer {
         'title' => 'BEUC HUB Sync',
         'queue' => $queue,
         'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
-        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
       ]);
       $runner->runAll();
     }
@@ -137,7 +134,6 @@ class CRM_Hubsync_Synchronizer {
         'title' => 'BEUC HUB Sync',
         'queue' => $queue,
         'errorMode'=> CRM_Queue_Runner::ERROR_CONTINUE,
-        'onEndUrl' => CRM_Utils_System::url('civicrm/beuchubsync/status', 'reset=1'),
       ]);
       $runner->runAll();
     }
