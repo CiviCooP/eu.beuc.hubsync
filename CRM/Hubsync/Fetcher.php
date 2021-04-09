@@ -19,6 +19,8 @@ class CRM_Hubsync_Fetcher {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $this->connectionURL);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     $curlReturn = curl_exec($ch);
     curl_close($ch);
 
