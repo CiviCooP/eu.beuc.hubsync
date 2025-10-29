@@ -4,6 +4,7 @@ class CRM_Hubsync_Synchronizer {
   private $custom_field_hub_id;
   private $custom_field_updated_at;
   private $custom_field_deleted_in_hub;
+  private $custom_field_kit_active;
 
   public function __construct() {
     // get the name of the custom field HUB ID, Updated At, Deleted in HUB
@@ -13,6 +14,8 @@ class CRM_Hubsync_Synchronizer {
     $this->custom_field_updated_at = 'custom_' . $result['id'];
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'deleted_in_hub']);
     $this->custom_field_deleted_in_hub = 'custom_' . $result['id'];
+    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'KIT_Active']);
+    $this->custom_field_kit_active = 'custom_' . $result['id'];
   }
 
   public function syncPriorities($queue, $dryRun = FALSE) {
@@ -124,7 +127,7 @@ class CRM_Hubsync_Synchronizer {
     $sql = "select id from civicrm_beuc_hub_users where is_deleted = 1";
     $dao = CRM_Core_DAO::executeQuery($sql);
     while ($dao->fetch()) {
-      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncDeletedContactTask'], [$dryRun, 'users', $dao->id, $this->custom_field_hub_id, $this->custom_field_updated_at, $this->custom_field_deleted_in_hub]);
+      $task = new CRM_Queue_Task(['CRM_Hubsync_Synchronizer', 'syncDeletedContactTask'], [$dryRun, 'users', $dao->id, $this->custom_field_hub_id, $this->custom_field_updated_at, $this->custom_field_deleted_in_hub, $this->custom_field_kit_active]);
       $queue->createItem($task);
     }
 
@@ -425,7 +428,7 @@ class CRM_Hubsync_Synchronizer {
     return TRUE;
   }
 
-  public static function syncDeletedContactTask(CRM_Queue_TaskContext $ctx, $dryRun, $contactType, $id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub) {
+  public static function syncDeletedContactTask(CRM_Queue_TaskContext $ctx, $dryRun, $contactType, $id, $custom_field_hub_id, $custom_field_updated_at, $custom_field_deleted_in_hub, $custom_field_kit_active) {
     $createContact = FALSE;
     $syncContact = FALSE;
     $contactID = 0;
@@ -486,6 +489,7 @@ class CRM_Hubsync_Synchronizer {
           $custom_field_hub_id => $dao->id,
           $custom_field_updated_at => $dao->updated_at,
           $custom_field_deleted_in_hub => 1,
+          $custom_field_kit_active => 0,
         ];
         $result = civicrm_api3('Contact', 'create', $params);
         $status = 'flagged as deleted';
@@ -530,7 +534,7 @@ class CRM_Hubsync_Synchronizer {
     return TRUE;
   }
 
-  private function findOrgByName($dao) {
+  private static function findOrgByName($dao) {
     $contactID = 0;
 
     // find org by name
