@@ -199,6 +199,9 @@ class CRM_Hubsync_Synchronizer {
           $params = [
             'name' => 'hub_priority_' . $dao->id,
             'title' => 'HUB Priority - ' . $dao->name,
+            'group_type' => [
+              2
+            ],
           ];
           $group = civicrm_api3('Group', 'create', $params);
 
