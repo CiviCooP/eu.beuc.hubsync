@@ -14,8 +14,7 @@ class CRM_Hubsync_Synchronizer {
     $this->custom_field_updated_at = 'custom_' . $result['id'];
     $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'deleted_in_hub']);
     $this->custom_field_deleted_in_hub = 'custom_' . $result['id'];
-    $result = civicrm_api3('CustomField', 'getsingle', ['name' => 'KIT_Active']);
-    $this->custom_field_kit_active = 'custom_' . $result['id'];
+    $this->custom_field_kit_active = 'custom_56'; // hardcoded id because there are two fields with name KIT_Active
   }
 
   public function syncPriorities($queue, $dryRun = FALSE) {
